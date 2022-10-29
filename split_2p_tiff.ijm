@@ -1,3 +1,4 @@
+t0=getTime()
 
 print("Running macro to split 2photon tiff into chunks");
 
@@ -16,7 +17,7 @@ print("Number of z planes is", z);
 
 //open tiff (give label if possible)
 run("Bio-Formats Importer", "open=" + filename + " color_mode=Default view=Hyperstack stack_order=XYCZT");
-//open(filename);
+print((getTime() - t0) / 1000, " : File opened.");
 
 fileStub = File.nameWithoutExtension;
 saveDir = File.directory + File.separator + "chunks";
@@ -33,6 +34,7 @@ while(nSlices() % 3 > 0) {
 zprojectString = "order=xyczt(default) channels=1 slices=" + z + " frames="+ nSlices()/z + " display=Grayscale";
 run("Stack to Hyperstack...", zprojectString);
 run("Z Project...", "projection=[Max Intensity] all");
+print((getTime() - t0) / 1000, " : Z-projection complete.");
 
 print("Number of frames after processing is", nSlices());
 
@@ -48,5 +50,6 @@ while (nSlices() > framesPerChunk) {
 }
 
 saveAs("Tiff", saveDir + File.separator + "0" + i + "_" + fileStub);
+print((getTime() - t0) / 1000, " : All files saved.");
 print("Saved file as", i, "chunks. Exiting.");
 
