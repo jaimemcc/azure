@@ -32,4 +32,9 @@ if ["$zplanes" = ""]; then
     zplanes="3"
 fi
 
+# xvfb-run-safe ~/Fiji.app/ImageJ-linux64 --headless -macro split_2p_tiff.ijm "$filename, $projection, $chunks, $zplanes"
 ~/Fiji.app/ImageJ-linux64 --headless -macro split_2p_tiff.ijm "$filename, $projection, $chunks, $zplanes"
+
+# https://forum.image.sc/t/how-do-i-prevent-bioformats-from-breaking-fijis-headless-mode/51277/2
+# https://imagej.net/learn/headless#Xvfb
+# https://list.nih.gov/cgi-bin/wa.exe?A2=IMAGEJ;5ace1ed0.1508
