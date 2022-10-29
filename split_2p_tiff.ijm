@@ -15,7 +15,8 @@ print("Number of frames per chunk is", framesPerChunk);
 print("Number of z planes is", z);
 
 //open tiff (give label if possible)
-open(filename);
+run("Bio-Formats Importer", "open=" + filename + " color_mode=Default view=Hyperstack stack_order=XYCZT");
+//open(filename);
 
 fileStub = File.nameWithoutExtension;
 saveDir = File.directory + File.separator + "chunks";
@@ -36,7 +37,8 @@ run("Z Project...", "projection=[Max Intensity] all");
 print("Number of frames after processing is", nSlices());
 
 i=1;
-while (nSlices() > framesPerChunk) {
+
+while (nSlices() > framesPerChunk) {
 	print(nSlices());
 	range="1-" + framesPerChunk;
 	run("Make Substack...", "slices=" + range + " delete");
