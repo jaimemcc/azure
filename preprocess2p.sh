@@ -17,7 +17,7 @@ if $update; then
 fi
 
 if ["$filename" = ""]; then
-    filename="/mnt/d/Test Data/2photon/221003/03_max_subset/MAX_file_00003_subset_299_frames.tif"
+    filename="/mnt/d/TestData/2photon/221003/03_max_subset/MAX_file_00003_subset_299_frames.tif"
 fi
 
 if ["$projection" = ""]; then
@@ -32,8 +32,16 @@ if ["$zplanes" = ""]; then
     zplanes="3"
 fi
 
-# xvfb-run-safe ~/Fiji.app/ImageJ-linux64 --headless -macro split_2p_tiff.ijm "$filename, $projection, $chunks, $zplanes"
-~/Fiji.app/ImageJ-linux64 -macro split_2p_tiff.ijm "$filename, $projection, $chunks, $zplanes"
+dirpath=${filename%/*}/chunks
+
+if [ -d "$DIR" ]; then
+    echo "chunked files already made. Skipping imageJ step."
+else
+    ~/Fiji.app/ImageJ-linux64 -macro split_2p_tiff.ijm "$filename, $projection, $chunks, $zplanes" -batch
+fi
+
+python run_suite2p_simple.py dirpath
+
 
 # https://forum.image.sc/t/how-do-i-prevent-bioformats-from-breaking-fijis-headless-mode/51277/2
 # https://imagej.net/learn/headless#Xvfb
