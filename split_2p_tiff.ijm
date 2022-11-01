@@ -6,9 +6,10 @@ argString = getArgument();
 args = split(argString, "(, )");
 
 filename = args[0];
-proj = args[1];
-framesPerChunk = args[2];
-z = args[3];
+outputDir = args[1];
+proj = args[2];
+framesPerChunk = args[3];
+z = args[4];
 
 print("File to be processed is", filename);
 print("Using", proj, "projection");
@@ -20,8 +21,8 @@ run("Bio-Formats Importer", "open=" + filename + " color_mode=Default view=Hyper
 print((getTime() - t0) / 1000, " : File opened.");
 
 fileStub = File.nameWithoutExtension;
-saveDir = File.directory + File.separator + "chunks";
-File.makeDirectory(saveDir);
+//saveDir = File.directory + File.separator + "chunks";
+//File.makeDirectory(saveDir);
 
 print("Total number of slices is", nSlices());
 
@@ -44,7 +45,7 @@ while (nSlices() > framesPerChunk) {
 	print(nSlices());
 	range="1-" + framesPerChunk;
 	run("Make Substack...", "slices=" + range + " delete");
-	saveAs("Tiff", saveDir + File.separator + "0" + i + "_" + fileStub);
+	saveAs("Tiff", outputDir + File.separator + "0" + i + "_" + fileStub);
 	close();
 	i++;
 }
