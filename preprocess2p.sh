@@ -32,15 +32,17 @@ if ["$zplanes" = ""]; then
     zplanes="3"
 fi
 
-dirpath=${filename%/*}/chunks
+dirpath=${filename%/*}/chunks/
+echo $dirpath
 
 if [ -d "$DIR" ]; then
     echo "chunked files already made. Skipping imageJ step."
 else
-    ~/Fiji.app/ImageJ-linux64 -macro split_2p_tiff.ijm "$filename, $projection, $chunks, $zplanes" -batch
+    echo "thinks $dirpath does not exist"
+#    ~/Fiji.app/ImageJ-linux64 -macro split_2p_tiff.ijm "$filename, $projection, $chunks, $zplanes" -batch
 fi
 
-python run_suite2p_simple.py dirpath
+python run_suite2p_simple.py $dirpath
 
 
 # https://forum.image.sc/t/how-do-i-prevent-bioformats-from-breaking-fijis-headless-mode/51277/2
