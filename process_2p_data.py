@@ -4,15 +4,18 @@ import getopt
 import os
 import subprocess
 import json
+import logging
 
 from datetime import datetime
 
 import pandas as pd
 
+from suite2p import default_ops, run_s2p
+
 sys.path.append("~/Github/azure")
 
 # get and parse options
-def parse_args(argv):
+def parse_args(argv, config_data):
     args_dict = {}
     args_dict["metafile"] = False
     args_dict["animals"] = ""
@@ -20,12 +23,13 @@ def parse_args(argv):
     args_dict["imagej"] = False
     args_dict["suite2p"] = False
     args_dict["overwrite"] = False
-    args_dict["project_dir"] = "/data"
+    args_dict["project_dir"] = config_data["path_to_project_dir"]
     args_dict["get_data"] = False
+    args_dict["get_behav_data"] = False
     arg_help = "{} -a <animals> -d <dates>".format(argv[0])
 
     try:
-        opts, args = getopt.getopt(argv[1:], "hmisogp:a:d:")
+        opts, args = getopt.getopt(argv[1:], "hmisogbp:a:d:")
     except:
         print(arg_help)
         sys.exit(2)
@@ -45,6 +49,8 @@ def parse_args(argv):
             args_dict["overwrite"] = True
         elif opt in ("-g", "--get_data"):
             args_dict["get_data"] = True
+        elif opt in ("-b", "--get_behav_data"):
+            args_dict["get_behav_data"] = True
         elif opt in ("-p", "--project_dir"):
             args_dict["project_dir"] = arg
         elif opt in ("-a", "--animals"):
@@ -56,13 +62,24 @@ def parse_args(argv):
     
     return args_dict
 
-args_dict = parse_args(sys.argv)
 f = open("config.json")
 config_data = json.load(f)
+args_dict = parse_args(sys.argv, config_data)
+
+if not os.path.isdir(args_dict["project_dir"]):
+    os.mkdir(args_dict["project_dir"])
+    os.mkdir(args_dict["project_dir"], "log")
+
+## setting up logger
+logfile = os.path.join(args_dict["project_dir"], "log", "{}.log".format(datetime.now().strftime('%Y-%m-%d_%H:%M:%S')))
+logging.basicConfig(filename=logfile,level=logging.DEBUG)
+
+logging.info("Created log file at {}".format(logfile))
 
 if args_dict["metafile"]:
-    print(config_data["metafile"])
-    subprocess.call("wsl /mnt/c/github/azure/getmetafile {}".format(config_data["metafile"]))
+    logging.info("Downloading metafile from remote repo")
+    path_to_azcopy = config_data["path_to_azcopy"]
+    subprocess.call("{} cp {} {}".format(path_to_azcopy, config_data["metafile"], args_dict["project_dir"]), shell=True)
 
 csv_file = os.path.join(args_dict["project_dir"], os.path.basename(config_data["metafile"]))
 print(csv_file)
@@ -97,8 +114,10 @@ print("Analysing", args_dict["animals"], "on", args_dict["dates"])
 path_root = args_dict["project_dir"]
 path_raw = os.path.join(path_root, "rawdata")
 path_imaging = os.path.join(path_raw, "imaging")
-path_processed = os.path.join(path_root, "processeddata")
 path_behav = os.path.join(path_raw, "behav")
+path_processed = os.path.join(path_root, "processeddata")
+path_proc_ij = os.path.join(path_processed, "proc_ij")
+path_proc_s2p = os.path.join(path_processed, "proc_s2p")
 
 if not os.path.isdir(path_root):
     print("Project path does not exist. Exiting.")
@@ -112,6 +131,9 @@ if not os.path.isdir(path_raw):
 
 if not os.path.isdir(path_processed):
     os.mkdir(path_processed)
+    os.mkdir(path_proc_ij)
+    os.mkdir(path_proc_s2p)
+
     print("Creating directory for processed data.")
 
 def get_session_string_from_df(row):
@@ -124,9 +146,10 @@ for animal in args_dict["animals"]:
 
     animal_imaging_path = os.path.join(path_imaging, "sub-{}".format(animal))
     animal_behav_path = os.path.join(path_behav, "sub-{}".format(animal))
-    animal_proc_path = os.path.join(path_processed, "sub-{}".format(animal))
+    animal_ij_path = os.path.join(path_proc_ij, "sub-{}".format(animal))
+    animal_s2p_path = os.path.join(path_proc_s2p, "sub-{}".format(animal))
     
-    for path in [animal_imaging_path, animal_behav_path, animal_proc_path]:
+    for path in [animal_imaging_path, animal_behav_path, animal_ij_path, animal_s2p_path]:
         if not os.path.isdir(path):
             os.mkdir(path)
 
@@ -141,9 +164,22 @@ for animal in args_dict["animals"]:
 
         ses_imaging_path = os.path.join(animal_imaging_path, ses_path)
         ses_behav_path = os.path.join(animal_behav_path, ses_path)
-        ses_proc_path = os.path.join(animal_proc_path, ses_path)
+        ses_ij_path = os.path.join(animal_ij_path, ses_path)
+        ses_s2p_path = os.path.join(animal_s2p_path, ses_path)
 
-        for path in [ses_imaging_path, ses_behav_path, ses_proc_path]:
+        imaging_file_remote = os.path.join(config_data["remote"], row["folder"].item(), row["scanimagefile"].item())
+        imaging_file_local = os.path.join(ses_imaging_path, "sub-{}_ses-{}_2p.tif".format(animal, row["day"].item().zfill(3)))
+
+        event_file_remote = os.path.join(config_data["remote"], "behav", row["eventfile"].item())
+        event_file_local = os.path.join(ses_behav_path, "sub-{}_ses-{}_events.csv".format(animal, row["day"].item().zfill(3)))
+
+        frame_file_remote = os.path.join(config_data["remote"], "behav", row["framefile"].item())
+        frame_file_local = os.path.join(ses_behav_path, "sub-{}_ses-{}_frames.csv".format(animal, row["day"].item().zfill(3)))
+
+        lick_file_remote = os.path.join(config_data["remote"], "behav", row["licks"].item())
+        lick_file_local = os.path.join(ses_behav_path, "sub-{}_ses-{}_licks.csv".format(animal, row["day"].item().zfill(3)))       
+
+        for path in [ses_imaging_path, ses_behav_path, ses_ij_path, ses_s2p_path]:
             if not os.path.isdir(path):
                  os.mkdir(path)
 
@@ -157,13 +193,17 @@ for animal in args_dict["animals"]:
                     if i != "y":
                         continue
 
-        print("Downloading data...")
-        path_to_azcopy = config_data["path_to_azcopy"]
+            print("Downloading imaging data...")
+            path_to_azcopy = config_data["path_to_azcopy"]
 
-        imaging_file_remote = os.path.join(config_data["remote"], row["folder"].item(), row["scanimagefile"].item())
-        imaging_file_local = os.path.join(ses_imaging_path, "sub-{}_ses-{}_2p.tif".format(animal, row["day"].item().zfill(3)))
-        subprocess.call("wsl {} cp {} {}".format(path_to_azcopy, imaging_file_remote, imaging_file_local))
+            subprocess.call("{} cp {}.tif {}".format(path_to_azcopy, imaging_file_remote, imaging_file_local), shell=True)
 
+        if args_dict["get_behav_data"]:
+            print("Downloading behavioral data...")
+
+            subprocess.call("{} cp {} {}".format(path_to_azcopy, event_file_remote, event_file_local), shell=True)
+            subprocess.call("{} cp {} {}".format(path_to_azcopy, frame_file_remote, frame_file_local), shell=True)
+            subprocess.call("{} cp {} {}".format(path_to_azcopy, lick_file_remote, lick_file_local), shell=True)
         # need to add in option to download behav files
         
 
@@ -178,16 +218,25 @@ for animal in args_dict["animals"]:
         if args_dict["imagej"]:
             print("Processing with ImageJ...")
             path_to_imagej = config_data["path_to_imagej"]
-            subprocess.call("wsl ./imagej_processing -i {} -f {} -o {} -c 6000 -z 3 -u true".format(path_to_imagej, imaging_file_local, ses_proc_path))
+            proj = config_data["imagej_settings"]["projection"]
+            z = config_data["imagej_settings"]["zplanes"]
+            chunks = config_data["imagej_settings"]["framesperchunk"]
+
+            subprocess.call("{} -macro split_2p_tiff.ijm '{}, {}, {}, {}, {}' -batch ".format(path_to_imagej, imaging_file_local, ses_ij_path, proj, chunks, z), shell=True)
 
         if args_dict["suite2p"]:
-
             print("Processing with suite2p...")
-            subprocess.call("./suite2p_bash {}".format(ses_proc_path))
+            db = {'data_path': [ses_ij_path]}
+            ops = default_ops()
+            ops["save_path0"] = ses_s2p_path
+            ops["anatomical_only"] = 3
+            ops["diameter"] = 15
+
+            run_s2p(ops=ops,db=db)
 
 
 
-# subprocess.call("./preprocess2p.sh -f {} -s {} -i {}".format(file, do_suite2p, do_imagej))
+
 
 # if __name__ == "__main__":
 #    parse_args(sys.argv)
