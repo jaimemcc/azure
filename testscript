@@ -1,8 +1,0 @@
-#!/bin/bash
-
-if [ -d "$1" ]; then
-    echo Exists
-    # Will enter here if $DIRECTORY exists, even if it contains spaces
-else
-   echo "does not exist"
-fi
