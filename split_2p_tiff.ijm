@@ -18,7 +18,7 @@ print("Number of z planes is", z);
 
 //open tiff (give label if possible)
 run("Bio-Formats Importer", "open=" + filename + " color_mode=Default view=Hyperstack stack_order=XYCZT");
-print((getTime() - t0) / 1000, " : File opened.");
+print((getTime() - t0) / 1000, "s : File opened.");
 
 fileStub = File.nameWithoutExtension;
 //saveDir = File.directory + File.separator + "chunks";
@@ -50,7 +50,7 @@ while (nSlices() > framesPerChunk) {
 	i++;
 }
 
-saveAs("Tiff", saveDir + File.separator + "0" + i + "_" + fileStub);
-print((getTime() - t0) / 1000, " : All files saved.");
+saveAs("Tiff", outputDir + File.separator + "0" + i + "_" + fileStub);
+print((getTime() - t0) / 1000, "s : All files saved.");
 print("Saved file as", i, "chunks. Exiting.");
 
