@@ -62,13 +62,37 @@ def parse_args(argv, config_data):
     
     return args_dict
 
+def check_existing_files(path_to_check, overwrite):
+    if len(os.listdir(path_to_check)) > 0:
+        if overwrite == False:
+            logger.info("Files found in {}. If you want to re-download then run the command again with the -o option.".format(path_to_check))
+            return False
+        else:
+            i = input("Overwrite option is selected. Do you want to try downloading the raw data again? (y/N)")
+            if i != "y":
+                return False
+            else:
+                return True
+    else:
+        return True
+
+def get_session_string_from_df(row):
+    day = str(row['day'].item()).zfill(3)
+    date_prefix = "ses-{}".format(day)
+    date_obj = datetime.strptime(row["date"].item(), "%d/%m/%Y")
+    date_suffix = date_obj.strftime("%Y%m%d")
+    return date_prefix + "-" + date_suffix
+
 f = open("config.json")
 config_data = json.load(f)
 args_dict = parse_args(sys.argv, config_data)
 
 if not os.path.isdir(args_dict["project_dir"]):
     os.mkdir(args_dict["project_dir"])
-    os.mkdir(args_dict["project_dir"], "log")
+
+logdir = os.path.join(args_dict["project_dir"], "log")
+if not os.path.isdir(logdir):
+    os.mkdir(logdir)
 
 ## setting up logger
 logfile = os.path.join(args_dict["project_dir"], "log", "{}.log".format(datetime.now().strftime('%Y-%m-%d_%H:%M:%S')))
@@ -158,11 +182,7 @@ if not os.path.isdir(path_processed):
 
     logger.info("Creating directories for processed data.")
 
-def get_session_string_from_df(row):
-    date_prefix = "ses-" + row["day"].item().zfill(3)
-    date_obj = datetime.strptime(row["date"].item(), "%d/%m/%Y")
-    date_suffix = date_obj.strftime("%Y%m%d")
-    return date_prefix + "-" + date_suffix
+
 
 for animal in args_dict["animals"]:
 
@@ -179,6 +199,7 @@ for animal in args_dict["animals"]:
         print("\n***********************************\n")
         logger.info("Now analysing {}, {}".format(animal, date))
         row = df[(df["animal"] == animal) & (df["date"] == date)]
+        day = str(row['day'].item()).zfill(3)
         try:
             ses_path = get_session_string_from_df(row)
         except:
@@ -191,30 +212,25 @@ for animal in args_dict["animals"]:
         ses_s2p_path = os.path.join(animal_s2p_path, ses_path)
 
         imaging_file_remote = os.path.join(config_data["remote"], row["folder"].item(), row["scanimagefile"].item())
-        imaging_file_local = os.path.join(ses_imaging_path, "sub-{}_ses-{}_2p.tif".format(animal, row["day"].item().zfill(3)))
+        imaging_file_local = os.path.join(ses_imaging_path, "sub-{}_ses-{}_2p.tif".format(animal, day))
 
-        event_file_remote = os.path.join(config_data["remote"], "behav", row["eventfile"].item())
-        event_file_local = os.path.join(ses_behav_path, "sub-{}_ses-{}_events.csv".format(animal, row["day"].item().zfill(3)))
+        event_file_remote = os.path.join(config_data["remote"], "bonsai", row["eventfile"].item())
+        event_file_local = os.path.join(ses_behav_path, "sub-{}_ses-{}_events.csv".format(animal, day))
 
-        frame_file_remote = os.path.join(config_data["remote"], "behav", row["framefile"].item())
-        frame_file_local = os.path.join(ses_behav_path, "sub-{}_ses-{}_frames.csv".format(animal, row["day"].item().zfill(3)))
+        frame_file_remote = os.path.join(config_data["remote"], "bonsai", row["framefile"].item())
+        frame_file_local = os.path.join(ses_behav_path, "sub-{}_ses-{}_frames.csv".format(animal, day))
 
-        lick_file_remote = os.path.join(config_data["remote"], "behav", row["licks"].item())
-        lick_file_local = os.path.join(ses_behav_path, "sub-{}_ses-{}_licks.csv".format(animal, row["day"].item().zfill(3)))       
+        lick_file_remote = os.path.join(config_data["remote"], "bonsai", row["licks"].item())
+        lick_file_local = os.path.join(ses_behav_path, "sub-{}_ses-{}_licks.csv".format(animal, day))       
 
         for path in [ses_imaging_path, ses_behav_path, ses_ij_path, ses_s2p_path]:
             if not os.path.isdir(path):
                  os.mkdir(path)
 
         if args_dict["get_data"]:
-            if len(os.listdir(ses_imaging_path)) > 0:
-                if args_dict["overwrite"] == False:
-                    logger.info("Files found in {}. If you want to re-download then run the command again with the -o option.".format(ses_imaging_path))
-                    continue
-                else:
-                    i = input("Overwrite option is selected. Do you want to try downloading the raw data again? (y/N)")
-                    if i != "y":
-                        continue
+            if not check_existing_files(ses_imaging_path, args_dict["overwrite"]):
+                print("exiting")
+                continue
 
             logger.info("Downloading imaging data...")
             path_to_azcopy = config_data["path_to_azcopy"]
@@ -225,13 +241,17 @@ for animal in args_dict["animals"]:
 
         if args_dict["get_behav_data"]:
             logger.info("Downloading behavioral data...")
+            path_to_azcopy = config_data["path_to_azcopy"]
 
             subprocess.call("{} cp {} {}".format(path_to_azcopy, event_file_remote, event_file_local), shell=True)
-            subprocess.call("{} cp {} {}".format(path_to_azcopy, frame_file_remote, frame_file_local), shell=True)
-            subprocess.call("{} cp {} {}".format(path_to_azcopy, lick_file_remote, lick_file_local), shell=True)
+            # subprocess.call("{} cp {} {}".format(path_to_azcopy, frame_file_remote, frame_file_local), shell=True)
+            # subprocess.call("{} cp {} {}".format(path_to_azcopy, lick_file_remote, lick_file_local), shell=True)
   
         # do imagej if needed
         if args_dict["imagej"]:
+            if not check_existing_files(ses_ij_path, args_dict["overwrite"]):
+                print("exiting")
+                continue
             logger.info("Processing with ImageJ...")
             path_to_imagej = config_data["path_to_imagej"]
             proj = config_data["imagej_settings"]["projection"]
@@ -241,6 +261,9 @@ for animal in args_dict["animals"]:
             subprocess.call("{} -macro split_2p_tiff.ijm '{}, {}, {}, {}, {}' -batch ".format(path_to_imagej, imaging_file_local, ses_ij_path, proj, chunks, z), shell=True)
 
         if args_dict["suite2p"]:
+            if not check_existing_files(ses_s2p_path, args_dict["overwrite"]):
+                print("exiting")
+                continue
             logger.info("Processing with suite2p...")
             db = {'data_path': [ses_ij_path]}
             ops = default_ops()
